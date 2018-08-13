@@ -1,0 +1,159 @@
+<?xml version="1.0"?>
+
+<project name="WmTestSuite" default="test-and-report-xml" basedir="." xmlns:antcontrib="antlib:net.sf.antcontrib">
+  <!-- Import AntContrib -->
+  <!--<taskdef resource="net/sf/antcontrib/antlib.xml" /> -->
+  
+  <taskdef uri="antlib:net.sf.antcontrib" resource="net/sf/antcontrib/antlib.xml">
+    <classpath>
+       <pathelement location="/opt/api102/common/lib/ant/ant-contrib-1.0b3.jar"/>
+    </classpath>
+  </taskdef>
+
+   
+
+  <!-- Integration Server -->
+  <property name="webMethods.integrationServer.name" value="webm101.prudhvi.com"/>
+  <property name="webMethods.integrationServer.port" value="9955"/>
+  <property name="webMethods.integrationServer.userid" value="Administrator"/>
+  <property name="webMethods.integrationServer.password" value="manage"/>
+  
+  <!-- wM Installation -->
+  <property name="webMethods.dir" location="/opt/api102"/>
+  
+  <!-- Test -->
+  <property name="webMethods.package.dir" location="${workspace}" />
+  <property name="resource.dir" location="${webMethods.package.dir}/resources" />
+  <property name="test.xml.dir" location="${resource.dir}/test/setup" />
+  <!--<property name="test.reports.dir" location="${resource.dir}/test/reports" /> -->
+  <property name="test.reports.dir" location="${workspace}/../testreports" />
+  
+  <property name="test.setup.file" location="${resource.dir}/test/data/" />
+
+  <path id="classpath">
+    <pathelement location="${webMethods.dir}/common/lib/testsuite/commons-jxpath-1.2.jar" />
+    <pathelement location="${webMethods.dir}/common/lib/testsuite/httpunit.jar" />
+    <pathelement location="${webMethods.dir}/common/lib/testsuite/junit.jar" />
+    <pathelement location="${webMethods.dir}/common/lib/testsuite/serviceMockClient.jar" />
+    <pathelement location="${webMethods.dir}/common/lib/testsuite/wmjxpath.jar" />
+    <pathelement location="${webMethods.dir}/common/lib/testsuite/xmlunit1.0.jar" />
+    <pathelement location="${webMethods.dir}/common/lib/wm-isclient.jar" />
+    <pathelement location="${webMethods.dir}/common/lib/glassfish/gf.javax.mail.jar" />
+    <pathelement location="${webMethods.dir}/common/lib/wm-g11nutils.jar" />
+    <pathelement location="${webMethods.dir}/common/lib/ext/icu4j.jar" />
+	<pathelement location="${webMethods.dir}/common/lib/testsuite/serviceInterceptor.jar" />
+  </path>
+  <target name="test.packages">
+   <echo message="Started Testing"/>
+    <antcontrib:foreach target="package.dirs" param="dir.name">
+      <path>
+        <dirset dir="${workspace}" includes="*" excludes="WmAPIGateway,logs,replicate"/>
+      </path>
+    </antcontrib:foreach>
+  </target>
+  <target name="package.dirs">
+    <echo message="Testing package ${dir.name}"/>
+   <antcontrib:foreach target="find.scripts" param="test.setup.dir">
+      <path>
+        <dirset dir="${dir.name}/resources/test" includes="setup"/>
+      </path>
+    </antcontrib:foreach>
+ 
+  </target>
+  <target name="find.scripts">
+    <echo message="Testing package ${test.setup.dir}"/>
+  <!-- <antcontrib:foreach target="execute.test.scripts" param="test.setup.script">
+    <path>
+        <fileset dir="${test.setup.dir}" includes="**/*.xml"/>
+      </path>
+   
+    </antcontrib:foreach> -->
+    <mkdir dir="${test.reports.dir}" />
+    <antcontrib:for param="test.setup.file" keepgoing="true">
+      <path>
+        <fileset dir="${test.setup.dir}" includes="**/*.xml" />
+      </path>
+      <sequential>
+        <basename property="file.basename" file="@{test.setup.file}" suffix=".xml" />
+        <echo message=" Prudhvi @{test.setup.file}  ${file.basename}" />
+        <junit printsummary="yes" haltonfailure="no" fork="true" failureproperty="test:failure" showoutput="true" dir="${test.setup.dir}/../../..">
+          <jvmarg value="-DwebMethods.integrationServer.name=${webMethods.integrationServer.name}" />
+          <jvmarg value="-DwebMethods.integrationServer.port=${webMethods.integrationServer.port}" />
+          <jvmarg value="-DwebMethods.integrationServer.userid=${webMethods.integrationServer.userid}" />
+          <jvmarg value="-DwebMethods.integrationServer.password=${webMethods.integrationServer.password}" />
+          <jvmarg value="-DwebMethods.test.setup.filename=@{test.setup.file}" />
+          <classpath>
+            <path refid="classpath" />
+          </classpath>
+          <formatter type="xml" />
+          <test name="com.wm.ps.test.WmTestSuite" outfile="TEST-${file.basename}" haltonerror="false" haltonfailure="false" todir="${test.reports.dir}" />
+        </junit>
+        <replaceregexp file="${test.reports.dir}/TEST-${file.basename}.xml" match=" name=&quot;com.wm.ps.test.WmTestSuite&quot; " replace=" name=&quot;com.wm.ps.test.WmTestSuite [${file.basename}]&quot; " />
+        <antcontrib:var name="file.basename" unset="true" />
+      </sequential>
+    </antcontrib:for>
+
+    <junitreport todir="${test.reports.dir}">
+      <fileset dir="${test.reports.dir}">
+        <include name="TEST-*.xml" />
+      </fileset>
+      <report format="frames" todir="${test.reports.dir}/html" />
+    </junitreport>
+
+   <fail if="test:failure">Unit test failure</fail>
+ 
+  </target>
+  
+
+  
+  
+  
+  
+  
+  <target name="run-test">
+    <foreach target="run-test-xml" param="test.setup.file">
+	  <fileset dir="${test.xml.dir}" includes="*.xml" />
+    </foreach>
+  </target>
+
+  <target name="check-test-folder">
+    <available property="test.xml.dir.exists" file="${test.xml.dir}" type="dir" />
+  </target>
+
+  <target name="test-and-report-xml" depends="check-test-folder" if="test.xml.dir.exists">
+    <mkdir dir="${test.reports.dir}" />
+    <antcontrib:for param="test.setup.file" keepgoing="true">
+      <path>
+        <fileset dir="${test.xml.dir}" includes="*.xml" />
+      </path>
+      <sequential>
+        <basename property="file.basename" file="@{test.setup.file}" suffix=".xml" />
+		<echo message="${file}" />
+        <junit printsummary="yes" haltonfailure="no" fork="true" failureproperty="test:failure" showoutput="true" dir="${webMethods.package.dir}">
+          <jvmarg value="-DwebMethods.integrationServer.name=${webMethods.integrationServer.name}" />
+          <jvmarg value="-DwebMethods.integrationServer.port=${webMethods.integrationServer.port}" />
+          <jvmarg value="-DwebMethods.integrationServer.userid=${webMethods.integrationServer.userid}" />
+          <jvmarg value="-DwebMethods.integrationServer.password=${webMethods.integrationServer.password}" />
+          <jvmarg value="-DwebMethods.test.setup.filename=@{test.setup.file}" />
+          <classpath>
+            <path refid="classpath" />
+          </classpath>
+          <formatter type="xml" />
+          <test name="com.wm.ps.test.WmTestSuite" outfile="TEST-${file.basename}" haltonerror="false" haltonfailure="false" todir="${test.reports.dir}" />
+        </junit>
+        <replaceregexp file="${test.reports.dir}/TEST-${file.basename}.xml" match=" name=&quot;com.wm.ps.test.WmTestSuite&quot; " replace=" name=&quot;com.wm.ps.test.WmTestSuite [${file.basename}]&quot; " />
+        <antcontrib:var name="file.basename" unset="true" />
+      </sequential>
+    </antcontrib:for>
+
+    <junitreport todir="${test.reports.dir}">
+      <fileset dir="${test.reports.dir}">
+        <include name="TEST-*.xml" />
+      </fileset>
+      <report format="frames" todir="${test.reports.dir}/html" />
+    </junitreport>
+
+   <fail if="test:failure">Unit test failure</fail>
+  </target>
+
+</project>
